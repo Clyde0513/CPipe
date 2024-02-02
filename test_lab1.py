@@ -24,9 +24,9 @@ class TestLab1(unittest.TestCase):
 
     def test_3_commands(self):
         self.assertTrue(self.make, msg='make failed')
-        cl_result = subprocess.run(('ls | cat | wc'),
+        cl_result = subprocess.run(('ls | cat | wc | ls | wc | wc | sort| sort'),
                                 capture_output=True, shell=True)
-        pipe_result = subprocess.check_output(('./pipe', 'ls', 'cat', 'wc'))
+        pipe_result = subprocess.check_output(('./pipe', 'ls', 'cat', 'wc', 'ls', 'wc', 'wc','sort','sort'))
         self.assertEqual(cl_result.stdout, pipe_result,
             msg=f"The output from ./pipe should be {cl_result.stdout} but got {pipe_result} instead.")
         self.assertTrue(self._make_clean, msg='make clean failed')

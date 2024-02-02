@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <signal.h>
 
 // File descriptor: 0 (stdin), 1 (stdout), 2 (stderr)
 // fd[0]: read end of the pipe
@@ -20,12 +21,12 @@ int main(int argc, char *argv[])
   {
     return EINVAL;
   }
-  // calling pipe first on all the new processes up to n - 1.
+  // calling pipe first on all the processes (both parent and its children) up to n - 1 processes
   for (int i = 0; i < n - 1; i++)
   {
     if (pipe(pipe_fds[i]) == -1)
     {
-      perror("pipe failed");
+      perror("pipe");
       exit(EXIT_FAILURE);
     }
   }
@@ -34,26 +35,18 @@ int main(int argc, char *argv[])
   {
     if ((ret = fork()) == -1)
     {
-      perror("fork failed");
+      perror("fork");
       exit(EXIT_FAILURE);
     }
-    if (ret == 0) // children
-    {
-      if (i != 0) // not in the first process
-      {
-        if (dup2(pipe_fds[i - 1][0], 0) == -1) // redirect stdin to read in
-        {
-          perror("dup2 failed");
-          exit(EXIT_FAILURE);
-        }
+    if (ret == 0)
+    { // children
+      if (i != 0)
+      {                              // not in the first process
+        dup2(pipe_fds[i - 1][0], 0); // redirect stdin to read in
       }
-      if (i != n - 1) // not in the last process
-      {
-        if (dup2(pipe_fds[i][1], 1) == -1) // redirect stdout to write in
-        {
-          perror("dup2 failed");
-          exit(EXIT_FAILURE);
-        }
+      if (i != n - 1)
+      {                          // not in the last process
+        dup2(pipe_fds[i][1], 1); // redirect stdout to write in
       }
       for (int i = 0; i < n - 1; i++)
       {
@@ -69,32 +62,26 @@ int main(int argc, char *argv[])
   }
 
   // parent process
-  int success = EXIT_SUCCESS;
-  int status = 0;
-  int true_status = 0;
-
   for (int i = 0; i < n - 1; i++)
   {
     close(pipe_fds[i][0]);
     close(pipe_fds[i][1]);
   }
   // need to wait for other process to be done.
-  // waiting before exiting the parent
+  int success = EXIT_SUCCESS;
+
+  int status = 0;
+  int true_status = 0;
   for (int i = 0; i < n; i++)
   {
-    while ((waitpid(ret, &status, 0)) > 0)
+    waitpid(ret, &status, 0);
+    if (status != 0)
+      true_status = status;
+    if ((WEXITSTATUS(true_status) || !WIFEXITED(true_status)) != 0)
     {
-      // waitpid(ret, &status, 0);
-      if (status != 0)
-      {
-        true_status = status;
-      }
-      if ((WEXITSTATUS(true_status) || !WIFEXITED(true_status)) != EXIT_SUCCESS)
-      {
-        //     return -1;
-        success = EXIT_FAILURE;
-      }
+      success = EXIT_FAILURE;
     }
   }
   exit(success);
 }
+// waiting before exiting the parents
